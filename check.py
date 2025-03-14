@@ -3,6 +3,7 @@ import time
 import os
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+import subprocess
 import xml.etree.ElementTree as ET
 
 
@@ -103,6 +104,27 @@ def parse_playlist(file_path):
         return []
 
 
+# 截取画面并保存
+def capture_snapshot(index, channel_name, url):
+    snapshot_folder = "snapshot"
+    os.makedirs(snapshot_folder, exist_ok=True)  # 确保目录存在
+
+    snapshot_filename = os.path.join(snapshot_folder, f"{index}_{channel_name}.jpg")
+
+    # 调用 ffmpeg 截取视频流的一帧作为截图
+    command = [
+        "ffmpeg", "-i", url, "-vframes", "1", "-q:v", "2", "-timeout", "30", snapshot_filename
+    ]
+    try:
+        subprocess.run(command, check=True, timeout=30)  # 设置超时为30秒
+        print(f"截图已保存到 {snapshot_filename}")
+    except subprocess.CalledProcessError:
+        print(f"无法从 {url} 获取截图")
+    except subprocess.TimeoutExpired:
+        print(f"从 {url} 获取截图时超时")
+
+
+
 # 测试 URL
 def test_url(index, channel_name, url):
     try:
@@ -110,8 +132,9 @@ def test_url(index, channel_name, url):
         response = requests.get(url, timeout=10)
         if response.status_code == 200:
             elapsed_time = time.time() - start_time
-            speed = len(response.content) / elapsed_time / 1024
+            speed = len(response.content) / elapsed_time / 1024  # KB/s
             print(f"{index}. {channel_name} - {url} | 下载速度: {speed:.2f} KB/s")
+            capture_snapshot(index, channel_name, url)  # 如果可用，截取画面
         else:
             print(f"{index}. {channel_name} - {url} | HTTP 错误代码: {response.status_code}")
     except requests.exceptions.RequestException as e:
