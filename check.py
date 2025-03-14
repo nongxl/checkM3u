@@ -1,72 +1,80 @@
-#coding:utf-8
 import requests
 import time
+import os
+from datetime import datetime
+
+# 下载远程 M3U 文件到本地，带时间戳
+def download_m3u(m3u_url, local_filename_prefix="local_playlist"):
+    # 获取当前时间戳，格式为：yyyy-mm-dd_hh-mm-ss
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    local_filename = f"{local_filename_prefix}_{timestamp}.m3u"
+
+    response = requests.get(m3u_url)
+    if response.status_code == 200:
+        with open(local_filename, 'wb') as f:
+            f.write(response.content)
+        print(f"M3U 文件已下载到 {local_filename}")
+    else:
+        print(f"无法下载 M3U 文件，HTTP 错误代码: {response.status_code}")
 
 
-def read_m3u_file(file_path):
-    """
-    读取 M3U 文件，提取其中的 URL 地址。
-    """
-    with open(file_path, 'r', encoding='utf-8') as file:
-        lines = file.readlines()
+# 从本地 M3U 文件解析出地址
+def parse_m3u(file_path):
+    if not os.path.exists(file_path):
+        print(f"文件 {file_path} 不存在！")
+        return []
 
-    # 提取每个 URL
-    urls = [line.strip() for line in lines if line.strip().startswith('http')]
+    with open(file_path, 'r', encoding='utf-8') as f:  # 使用 utf-8 编码打开文件
+        content = f.readlines()
+
+    # 只提取包含http/https地址的行
+    urls = [line.strip() for line in content if line.strip().startswith('http')]
     return urls
 
 
-def check_url_validity(url):
-    """
-    检查 URL 是否有效
-    """
-    try:
-        response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            return True
-        else:
-            return False
-    except requests.RequestException:
-        return False
-
-
-def test_speed(url):
-    """
-    测试 URL 的下载速度
-    """
+# 测试地址的有效性和速度
+def test_url(url):
     try:
         start_time = time.time()
-        response = requests.get(url, stream=True, timeout=10)
-        total_bytes = 0
-        for chunk in response.iter_content(chunk_size=1024):
-            total_bytes += len(chunk)
-        end_time = time.time()
-
-        download_time = end_time - start_time
-        speed = total_bytes / download_time / 1024  # KB/s
-        return download_time, speed
-    except requests.RequestException:
-        return None, None
-
-
-def main():
-    m3u_file_path = input("请输入 M3U 文件路径：")
-    urls = read_m3u_file(m3u_file_path)
-
-    for url in urls:
-        print(f"检查 URL: {url}")
-        is_valid = check_url_validity(url)
-
-        if is_valid:
-            print("URL 有效")
-            download_time, speed = test_speed(url)
-            if download_time is not None:
-                print(f"下载时间: {download_time:.2f}秒, 速度: {speed:.2f} KB/s")
-            else:
-                print("无法获取下载速度")
+        response = requests.get(url, timeout=10)  # 设置超时时间10秒
+        if response.status_code == 200:
+            elapsed_time = time.time() - start_time
+            speed = len(response.content) / elapsed_time / 1024  # 速度单位 KB/s
+            print(f"地址有效: {url} | 下载速度: {speed:.2f} KB/s")
         else:
-            print("URL 无效")
-        print("=" * 50)
+            print(f"地址无效: {url} | HTTP 错误代码: {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        print(f"地址无效: {url} | 错误: {e}")
 
 
-if __name__ == '__main__':
-    main()
+# 主函数
+def main(m3u_input):
+    # 判断是否是远程 M3U 文件
+    is_remote = m3u_input.startswith("http://") or m3u_input.startswith("https://")
+
+    if is_remote:
+        # 如果是远程 M3U 文件
+        download_m3u(m3u_input)
+        m3u_file = "local_playlist.m3u"  # 默认文件名
+    else:
+        # 如果是本地 M3U 文件
+        m3u_file = m3u_input
+
+    # 解析 M3U 文件
+    urls = parse_m3u(m3u_file)
+
+    if not urls:
+        print("没有找到有效的流媒体地址。")
+        return
+
+    # 测试每个 URL
+    for url in urls:
+        test_url(url)
+
+
+if __name__ == "__main__":
+    # 获取输入
+    m3u_input = input("请输入 M3U 文件的 URL 或本地文件路径: ")
+
+    # 根据输入判断是远程文件还是本地文件
+    main(m3u_input)
