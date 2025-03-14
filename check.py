@@ -3,6 +3,7 @@ import time
 import os
 from datetime import datetime
 
+
 # 下载远程 M3U 文件到本地，带时间戳
 def download_m3u(m3u_url, local_filename_prefix="local_playlist"):
     # 获取当前时间戳，格式为：yyyy-mm-dd_hh-mm-ss
@@ -14,8 +15,10 @@ def download_m3u(m3u_url, local_filename_prefix="local_playlist"):
         with open(local_filename, 'wb') as f:
             f.write(response.content)
         print(f"M3U 文件已下载到 {local_filename}")
+        return local_filename  # 返回下载的文件名
     else:
         print(f"无法下载 M3U 文件，HTTP 错误代码: {response.status_code}")
+        return None
 
 
 # 从本地 M3U 文件解析出地址
@@ -53,9 +56,11 @@ def main(m3u_input):
     is_remote = m3u_input.startswith("http://") or m3u_input.startswith("https://")
 
     if is_remote:
-        # 如果是远程 M3U 文件
-        download_m3u(m3u_input)
-        m3u_file = "local_playlist.m3u"  # 默认文件名
+        # 如果是远程 M3U 文件，下载并获取下载后的文件名
+        downloaded_file = download_m3u(m3u_input)
+        if downloaded_file is None:
+            return  # 如果下载失败，直接返回
+        m3u_file = downloaded_file  # 使用下载后的文件名
     else:
         # 如果是本地 M3U 文件
         m3u_file = m3u_input
